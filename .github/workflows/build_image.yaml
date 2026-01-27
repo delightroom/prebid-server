@@ -1,0 +1,93 @@
+name: Build and Push ECR Image (us-east-2)
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        required: true
+        type: string
+        description: "ECR repository name"
+      dockerfile_path:
+        required: false
+        type: string
+        description: "Dockerfile path"
+        default: "Dockerfile"
+      skip_tests:
+        required: false
+        type: boolean
+        description: "Skip tests during Docker build"
+        default: false
+      tag_latest:
+        required: false
+        type: boolean
+        description: "Whether to tag the image as latest"
+        default: true
+    outputs:
+      image_name:
+        description: "ECR image name"
+        value: ${{ jobs.build.outputs.image_name }}
+      image_tag:
+        description: "Full image tag"
+        value: ${{ jobs.build.outputs.image_tag }}
+    secrets:
+      AWS_ECR_USER_ACCESS_KEY_ID:
+        required: true
+      AWS_ECR_USER_SECRET_ACCESS_KEY:
+        required: true
+
+jobs:
+  build:
+    name: Build and Push Image
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    outputs:
+      image_name: ${{ steps.set-outputs.outputs.image_name }}
+      image_tag: ${{ steps.set-outputs.outputs.image_tag }}
+
+    steps:
+      - name: Get version
+        id: get-version
+        run: |
+          VERSION=$(echo ${{ github.sha }} | cut -c1-8)
+          echo VERSION=$VERSION
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ECR_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_ECR_USER_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+          mask-aws-account-id: false
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Setup Docker Builder
+        uses: useblacksmith/setup-docker-builder@v1
+
+      - name: Build and push image to Amazon ECR
+        id: build-image
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: ${{ inputs.dockerfile_path }}
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ inputs.repository }}:${{ steps.get-version.outputs.version }}
+            ${{ inputs.tag_latest && format('{0}/{1}:latest', steps.login-ecr.outputs.registry, inputs.repository) || '' }}
+          build-args: |
+            TEST=${{ inputs.skip_tests && 'false' || 'true' }}
+
+      - name: Set outputs
+        id: set-outputs
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ inputs.repository }}
+          VERSION: ${{ steps.get-version.outputs.version }}
+        run: |
+          echo "image_name=$ECR_REGISTRY/$ECR_REPOSITORY" >> $GITHUB_OUTPUT
+          echo "image_tag=$VERSION" >> $GITHUB_OUTPUT

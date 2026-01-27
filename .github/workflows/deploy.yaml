@@ -1,0 +1,80 @@
+name: Deploy Prebid Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target environment"
+        required: true
+        default: "use2.dev"
+        type: choice
+        options:
+          - use2.dev
+          # Future environments:
+          # - apne2.dev
+          # - use2.prod
+          # - apne2.prod
+      strategy:
+        description: "Deployment strategy"
+        required: true
+        default: "rollingUpdate"
+        type: choice
+        options:
+          - rollingUpdate
+          - canary
+      skip_tests:
+        description: "Skip tests during build"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    uses: ./.github/workflows/build_image.yaml
+    with:
+      repository: daro/prebid-server
+      skip_tests: ${{ inputs.skip_tests }}
+    secrets:
+      AWS_ECR_USER_ACCESS_KEY_ID: ${{ secrets.AWS_ECR_USER_ACCESS_KEY_ID }}
+      AWS_ECR_USER_SECRET_ACCESS_KEY: ${{ secrets.AWS_ECR_USER_SECRET_ACCESS_KEY }}
+
+  deploy:
+    name: Deploy to ${{ inputs.target }}
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    needs: build
+    env:
+      IMAGE_NAME: ${{ needs.build.outputs.image_name }}
+      IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+      WORKING_DIR: ./prebid-server-deploy
+
+    steps:
+      - name: Checkout deploy repo
+        uses: actions/checkout@v4
+        with:
+          repository: delightroom/prebid-server-deploy
+          ref: main
+          token: ${{ secrets.GH_PAT }}
+          path: prebid-server-deploy
+
+      - name: Update image tag
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          sed -i.bak "s/^  tag: .*/  tag: \"${{ env.IMAGE_TAG }}\"/" chart/values.${{ inputs.target }}.yaml
+          rm chart/values.${{ inputs.target }}.yaml.bak
+
+      - name: Update deployment strategy
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          sed -i.bak "s/strategyType: .*/strategyType: ${{ inputs.strategy }}/" chart/values.${{ inputs.target }}.yaml
+          rm chart/values.${{ inputs.target }}.yaml.bak
+
+      - name: Commit and push
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add -A
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "deploy ${{ inputs.target }}: update image to $IMAGE_TAG with ${{ inputs.strategy }} strategy"
+            git push -u origin main
+          fi
