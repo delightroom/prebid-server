@@ -88,6 +88,7 @@ import (
 	"github.com/prebid/prebid-server/v3/adapters/cpmstar"
 	"github.com/prebid/prebid-server/v3/adapters/criteo"
 	"github.com/prebid/prebid-server/v3/adapters/cwire"
+	"github.com/prebid/prebid-server/v3/adapters/daromock"
 	"github.com/prebid/prebid-server/v3/adapters/datablocks"
 	"github.com/prebid/prebid-server/v3/adapters/decenterads"
 	"github.com/prebid/prebid-server/v3/adapters/deepintent"
@@ -355,6 +356,7 @@ func newAdapterBuilders() map[openrtb_ext.BidderName]adapters.Builder {
 		openrtb_ext.BidderCpmstar:           cpmstar.Builder,
 		openrtb_ext.BidderCriteo:            criteo.Builder,
 		openrtb_ext.BidderCWire:             cwire.Builder,
+		openrtb_ext.BidderDaromock:          daromock.Builder,
 		openrtb_ext.BidderDatablocks:        datablocks.Builder,
 		openrtb_ext.BidderDecenterAds:       decenterads.Builder,
 		openrtb_ext.BidderDeepintent:        deepintent.Builder,
