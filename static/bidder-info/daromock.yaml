@@ -1,0 +1,10 @@
+endpoint: "https://dev.api.kr.daro.so/api/v1/prebid/mock-bid"
+maintainer:
+  email: "tech@daro.so"
+capabilities:
+  site:
+    mediaTypes:
+      - banner
+  app:
+    mediaTypes:
+      - banner
