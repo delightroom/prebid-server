@@ -28,15 +28,17 @@ on:
         default: false
         type: boolean
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build:
     uses: ./.github/workflows/build_image.yaml
     with:
       repository: daro/prebid-server
       skip_tests: ${{ inputs.skip_tests }}
-    secrets:
-      AWS_ECR_USER_ACCESS_KEY_ID: ${{ secrets.AWS_ECR_USER_ACCESS_KEY_ID }}
-      AWS_ECR_USER_SECRET_ACCESS_KEY: ${{ secrets.AWS_ECR_USER_SECRET_ACCESS_KEY }}
+      role_arn: ${{ vars.AWS_ECR_PUSH_ROLE_ARN }}
 
   deploy:
     name: Deploy to ${{ inputs.target }}
@@ -48,12 +50,21 @@ jobs:
       WORKING_DIR: ./prebid-server-deploy
 
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: delightroom
+          repositories: prebid-server-deploy
+
       - name: Checkout deploy repo
         uses: actions/checkout@v4
         with:
           repository: delightroom/prebid-server-deploy
           ref: main
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
           path: prebid-server-deploy
 
       - name: Update image tag

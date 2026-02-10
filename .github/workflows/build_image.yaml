@@ -22,6 +22,10 @@ on:
         type: boolean
         description: "Whether to tag the image as latest"
         default: true
+      role_arn:
+        required: true
+        type: string
+        description: "IAM role ARN to assume via OIDC for ECR push"
     outputs:
       image_name:
         description: "ECR image name"
@@ -29,16 +33,14 @@ on:
       image_tag:
         description: "Full image tag"
         value: ${{ jobs.build.outputs.image_tag }}
-    secrets:
-      AWS_ECR_USER_ACCESS_KEY_ID:
-        required: true
-      AWS_ECR_USER_SECRET_ACCESS_KEY:
-        required: true
 
 jobs:
   build:
     name: Build and Push Image
     runs-on: blacksmith-4vcpu-ubuntu-2204
+    permissions:
+      id-token: write
+      contents: read
     outputs:
       image_name: ${{ steps.set-outputs.outputs.image_name }}
       image_tag: ${{ steps.set-outputs.outputs.image_tag }}
@@ -57,8 +59,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ECR_USER_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_ECR_USER_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ inputs.role_arn }}
           aws-region: us-east-2
           mask-aws-account-id: false
 
